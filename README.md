@@ -1,7 +1,10 @@
-## Obsidian mousewheel image zoom
+## Image Stacker
 
-This plugin enables you to increase/decrease the size of an image by holding down a configurable key (defaults to 
-left alt), hovering over an image in preview mode and scrolling.
+This plugin stacks consecutive images onto the same line.
+Use the provided hotkeys while hovering over an image to combine or split adjacent images.
+Available commands:
+- **Stack images under cursor**: merge consecutive image lines onto a single line.
+- **Unstack images under cursor**: split images on a single line onto separate lines with the same indentation.
 ![plugin demo](https://raw.githubusercontent.com/nicojeske/mousewheel-image-zoom/master/Animation.gif)
 
 ## How to install

@@ -1,10 +1,10 @@
 {
-  "id": "mousewheel-image-zoom",
-  "name": "Mousewheel Image zoom",
+  "id": "image-stacker",
+  "name": "Image Stacker",
   "version": "1.0.24",
   "minAppVersion": "0.9.12",
-  "description": "This plugin enables you to increase/decrease the size of an image by scrolling",
+  "description": "Stack or unstack consecutive images with hotkeys",
   "author": "Nico Jeske",
-  "authorUrl": "https://github.com/nicojeske/mousewheel-image-zoom",
+  "authorUrl": "https://github.com/nicojeske/image-stacker",
   "isDesktopOnly": true
 }

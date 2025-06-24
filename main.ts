@@ -2,7 +2,7 @@ import {App, MarkdownView, Plugin, PluginSettingTab, Setting, TFile, WorkspaceWi
 import { Util } from  "./src/util";
  
 
-interface MouseWheelZoomSettings {
+interface ImageStackerSettings {
     initialSize: number;
     modifierKey: ModifierKey;
     stepSize: number;
@@ -18,7 +18,7 @@ enum ModifierKey {
     SHIFT_RIGHT = "ShiftRight"
 }
 
-const DEFAULT_SETTINGS: MouseWheelZoomSettings = {
+const DEFAULT_SETTINGS: ImageStackerSettings = {
     modifierKey: ModifierKey.ALT,
     stepSize: 25,
     initialSize: 500,
@@ -28,9 +28,10 @@ const DEFAULT_SETTINGS: MouseWheelZoomSettings = {
 const CtrlCanvasConflictWarning = "Warning: Using Ctrl as the modifier key conflicts with default canvas zooming behavior when 'Resize in canvas' is enabled. Consider using another modifier key or disabling 'Resize in canvas'.";
  
 
-export default class MouseWheelZoomPlugin extends Plugin {
-    settings: MouseWheelZoomSettings;
+export default class ImageStackerPlugin extends Plugin {
+    settings: ImageStackerSettings;
     isKeyHeldDown = false;
+    lastHoveredImage: Element | null = null;
 
     async onload() {
         await this.loadSettings();
@@ -39,15 +40,39 @@ export default class MouseWheelZoomPlugin extends Plugin {
         );
         this.registerEvents(window);
 
-        this.addSettingTab(new MouseWheelZoomSettingsTab(this.app, this));
+        this.addSettingTab(new ImageStackerSettingsTab(this.app, this));
 
-        console.log("Loaded: Mousewheel image zoom")
+        this.addCommand({
+            id: 'stack-images-under-cursor',
+            name: 'Stack images under cursor',
+            callback: () => {
+                if (this.lastHoveredImage) {
+                    this.handleStack(this.lastHoveredImage);
+                } else {
+                    new Notice('Hover over an image and try again');
+                }
+            }
+        });
+
+        this.addCommand({
+            id: 'unstack-images-under-cursor',
+            name: 'Unstack images under cursor',
+            callback: () => {
+                if (this.lastHoveredImage) {
+                    this.handleUnstack(this.lastHoveredImage);
+                } else {
+                    new Notice('Hover over an image and try again');
+                }
+            }
+        });
+
+        console.log("Loaded: Image Stacker")
 
         this.checkExistingUserConflict();
     }
 
     checkExistingUserConflict() {
-        const noticeShownKey = 'mousewheel-zoom-ctrl-warning-shown'; // Key for localStorage flag
+        const noticeShownKey = 'image-stacker-ctrl-warning-shown'; // Key for localStorage flag
         const isCtrl = this.settings.modifierKey === ModifierKey.CTRL || this.settings.modifierKey === ModifierKey.CTRL_RIGHT;
 
 
@@ -56,7 +81,7 @@ export default class MouseWheelZoomPlugin extends Plugin {
                 const fragment = document.createDocumentFragment();
 
                 const titleEl = document.createElement('strong');
-                titleEl.textContent = "Mousewheel Image Zoom";
+                titleEl.textContent = "Image Stacker";
                 fragment.appendChild(titleEl);
 
                 fragment.appendChild(document.createElement('br'));
@@ -109,6 +134,13 @@ export default class MouseWheelZoomPlugin extends Plugin {
      */
     private registerEvents(currentWindow: Window) {
         const doc: Document = currentWindow.document;
+
+        this.registerDomEvent(doc, "mousemove", (evt) => {
+            const target = evt.target as Element;
+            if (target.nodeName === "IMG") {
+                this.lastHoveredImage = target;
+            }
+        });
         this.registerDomEvent(doc, "keydown", (evt) => {
             if (evt.code === this.settings.modifierKey.toString()) {
                 // When canvas mode is enabled we just ignore the keydown event if the canvas is active
@@ -159,8 +191,7 @@ export default class MouseWheelZoomPlugin extends Plugin {
                     // i think here can be implementation of zoom images in embded markdown files on canvas. 
                 }
                 else if (targetIsImage) {
-                    // Stack consecutive image lines instead of resizing
-                    this.handleStack(evt, eventTarget);
+                    this.lastHoveredImage = eventTarget;
                 }
             }
         });
@@ -206,12 +237,11 @@ export default class MouseWheelZoomPlugin extends Plugin {
 
 
     /**
-     * Handles zooming with the mousewheel on an image
-     * @param evt wheel event
+     * Stack consecutive image lines triggered by a hotkey
      * @param eventTarget targeted image element
      * @private
      */
-    private async handleStack(evt: WheelEvent, eventTarget: Element) {
+    private async handleStack(eventTarget: Element) {
         const imageUri = eventTarget.attributes.getNamedItem("src").textContent;
 
         const activeFile: TFile = await this.getActivePaneWithImage(eventTarget);
@@ -236,8 +266,14 @@ export default class MouseWheelZoomPlugin extends Plugin {
 
             const isImageLine = (line: string) => {
                 const trimmed = line.trim();
-                return obsidianImagePattern.test(trimmed) || markdownImagePattern.test(trimmed);
+                // remove leading list markers like "-" or "1." before checking
+                const withoutListPrefix = trimmed.replace(/^(?:[-*+]\s*|\d+\.\s*)/, "");
+                return obsidianImagePattern.test(withoutListPrefix) || markdownImagePattern.test(withoutListPrefix);
             };
+
+            const isIgnorableLine = (line: string) => {
+                return /^[\s-]*$/.test(line);
+            }
 
             let index = lines.findIndex(line => line.includes(searchString) && isImageLine(line));
             if (index === -1) {
@@ -247,16 +283,75 @@ export default class MouseWheelZoomPlugin extends Plugin {
             let start = index;
             let end = index;
 
-            while (start > 0 && isImageLine(lines[start - 1])) start--;
-            while (end < lines.length - 1 && isImageLine(lines[end + 1])) end++;
+            while (start > 0 && (isImageLine(lines[start - 1]) || isIgnorableLine(lines[start - 1]))) start--;
+            while (end < lines.length - 1 && (isImageLine(lines[end + 1]) || isIgnorableLine(lines[end + 1]))) end++;
 
-            const images = [] as string[];
-            for (let i = start; i <= end; i++) {
-                const trimmed = lines[i].trim();
-                if (trimmed.length > 0) images.push(trimmed);
+            const prefixMatch = lines[start].match(/^(\s*(?:[-*+]\s*|\d+\.\s*)?)/);
+            const prefix = prefixMatch ? prefixMatch[0] : "";
+
+           const images = [] as string[];
+           for (let i = start; i <= end; i++) {
+               const trimmed = lines[i].trim();
+               if (isImageLine(trimmed)) {
+                   const withoutPrefix = trimmed.replace(/^(?:[-*+]\s*|\d+\.\s*)/, "");
+                   images.push(withoutPrefix);
+               }
+           }
+
+            if (images.length <= 1) {
+                return fileText;
             }
 
-            lines.splice(start, end - start + 1, images.join(' '));
+           lines.splice(start, end - start + 1, prefix + images.join(' '));
+           const modifiedBody = lines.join('\n');
+
+            return frontmatter + modifiedBody;
+        });
+    }
+
+    /**
+     * Split images on the same line into separate lines preserving indentation
+     * @param eventTarget targeted image element
+     * @private
+     */
+    private async handleUnstack(eventTarget: Element) {
+        const imageUri = eventTarget.attributes.getNamedItem("src").textContent;
+
+        const activeFile: TFile = await this.getActivePaneWithImage(eventTarget);
+
+        await this.app.vault.process(activeFile, (fileText) => {
+            let frontmatter = "";
+            let body = fileText;
+            const frontmatterRegex = /^---\s*([\s\S]*?)\s*---\n*/;
+            const match = fileText.match(frontmatterRegex);
+
+            if (match) {
+                frontmatter = match[0];
+                body = fileText.slice(frontmatter.length);
+            }
+
+            const searchString = this.getSearchStringForImage(imageUri, eventTarget);
+            const lines = body.split(/\r?\n/);
+
+            const imageLineIndex = lines.findIndex(line => line.includes(searchString));
+            if (imageLineIndex === -1) {
+                return fileText;
+            }
+
+            const line = lines[imageLineIndex];
+
+            const prefixMatch = line.match(/^(\s*(?:[-*+]\s*|\d+\.\s*)?)/);
+            const prefix = prefixMatch ? prefixMatch[0] : "";
+
+            const imagePattern = /!\[\[[^\]]+\]\](?:\|\d+)?|!\[[^\]]*\]\([^\)]+\)/g;
+            const images = line.match(imagePattern);
+            if (!images || images.length <= 1) {
+                return fileText;
+            }
+
+            const replacementLines = images.map(img => prefix + img);
+            lines.splice(imageLineIndex, 1, ...replacementLines);
+
             const modifiedBody = lines.join('\n');
 
             return frontmatter + modifiedBody;
@@ -366,11 +461,11 @@ export default class MouseWheelZoomPlugin extends Plugin {
 
 }
 
-class MouseWheelZoomSettingsTab extends PluginSettingTab {
-    plugin: MouseWheelZoomPlugin;
+class ImageStackerSettingsTab extends PluginSettingTab {
+    plugin: ImageStackerPlugin;
     warningEl: HTMLDivElement;
 
-    constructor(app: App, plugin: MouseWheelZoomPlugin) {
+    constructor(app: App, plugin: ImageStackerPlugin) {
         super(app, plugin);
         this.plugin = plugin;
     }
@@ -398,7 +493,7 @@ class MouseWheelZoomSettingsTab extends PluginSettingTab {
 
         containerEl.empty();
 
-        containerEl.createEl('h2', {text: 'Settings for mousewheel zoom'});
+        containerEl.createEl('h2', {text: 'Settings for Image Stacker'});
 
         new Setting(containerEl)
             .setName('Trigger Key')
@@ -460,7 +555,7 @@ class MouseWheelZoomSettingsTab extends PluginSettingTab {
 					});
 			});
 
-        this.warningEl = containerEl.createDiv({ cls: 'mousewheel-zoom-warning' });
+        this.warningEl = containerEl.createDiv({ cls: 'image-stacker-warning' });
         this.warningEl.style.display = 'none';
         this.updateWarningMessage(this.plugin.settings.modifierKey, this.plugin.settings.resizeInCanvas);
     
