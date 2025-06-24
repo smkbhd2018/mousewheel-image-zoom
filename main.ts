@@ -289,17 +289,21 @@ export default class ImageStackerPlugin extends Plugin {
             const prefixMatch = lines[start].match(/^(\s*(?:[-*+]\s*|\d+\.\s*)?)/);
             const prefix = prefixMatch ? prefixMatch[0] : "";
 
-            const images = [] as string[];
-            for (let i = start; i <= end; i++) {
-                const trimmed = lines[i].trim();
-                if (isImageLine(trimmed)) {
-                    const withoutPrefix = trimmed.replace(/^(?:[-*+]\s*|\d+\.\s*)/, "");
-                    images.push(withoutPrefix);
-                }
+           const images = [] as string[];
+           for (let i = start; i <= end; i++) {
+               const trimmed = lines[i].trim();
+               if (isImageLine(trimmed)) {
+                   const withoutPrefix = trimmed.replace(/^(?:[-*+]\s*|\d+\.\s*)/, "");
+                   images.push(withoutPrefix);
+               }
+           }
+
+            if (images.length <= 1) {
+                return fileText;
             }
 
-            lines.splice(start, end - start + 1, prefix + images.join(' '));
-            const modifiedBody = lines.join('\n');
+           lines.splice(start, end - start + 1, prefix + images.join(' '));
+           const modifiedBody = lines.join('\n');
 
             return frontmatter + modifiedBody;
         });
