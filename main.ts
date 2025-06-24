@@ -236,7 +236,9 @@ export default class MouseWheelZoomPlugin extends Plugin {
 
             const isImageLine = (line: string) => {
                 const trimmed = line.trim();
-                return obsidianImagePattern.test(trimmed) || markdownImagePattern.test(trimmed);
+                // remove leading list markers like "-" or "1." before checking
+                const withoutListPrefix = trimmed.replace(/^(?:[-*+]\s*|\d+\.\s*)/, "");
+                return obsidianImagePattern.test(withoutListPrefix) || markdownImagePattern.test(withoutListPrefix);
             };
 
             const isIgnorableLine = (line: string) => {
