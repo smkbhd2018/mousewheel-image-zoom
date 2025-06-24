@@ -260,17 +260,20 @@ export default class MouseWheelZoomPlugin extends Plugin {
                 return sanitized.length === 0 || !/[A-Za-z0-9]/.test(sanitized);
             };
 
-            let index = lines.findIndex(line => line.includes(searchString) && isImageLine(line));
-            if (index === -1) {
-                return fileText;
+    private async getActivePaneWithImage(imageElement: Element): Promise<TFile> {
+        return new Promise((resolve, reject) => {
+            let found = false;
+            this.app.workspace.iterateAllLeaves(leaf => {
+                if (!found && leaf.view.containerEl.contains(imageElement) && leaf.view instanceof MarkdownView) {
+                    found = true;
+                    resolve(leaf.view.file);
+                }
+            });
+            if (!found) {
+                reject(new Error("No file belonging to the image found"));
             }
-
-            let start = index;
-            let end = index;
-
-            while (start > 0 && (isImageLine(lines[start - 1]) || isIgnorable(lines[start - 1]))) start--;
-            while (end < lines.length - 1 && (isImageLine(lines[end + 1]) || isIgnorable(lines[end + 1]))) end++;
-
+        });
+    }
             const images = [] as string[];
             for (let i = start; i <= end; i++) {
                 if (isImageLine(lines[i])) {
