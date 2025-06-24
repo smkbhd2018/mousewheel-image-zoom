@@ -1,5 +1,5 @@
 import {App, MarkdownView, Plugin, PluginSettingTab, Setting, TFile, WorkspaceWindow, View, Notice} from 'obsidian';
-import { Util, HandleZoomParams } from  "./src/util";
+import { Util } from  "./src/util";
  
 
 interface MouseWheelZoomSettings {
@@ -159,8 +159,8 @@ export default class MouseWheelZoomPlugin extends Plugin {
                     // i think here can be implementation of zoom images in embded markdown files on canvas. 
                 }
                 else if (targetIsImage) {
-                    // Handle the zooming of the image
-                    this.handleZoom(evt, eventTarget);
+                    // Stack consecutive image lines instead of resizing
+                    this.handleStack(evt, eventTarget);
                 }
             }
         });
@@ -211,7 +211,7 @@ export default class MouseWheelZoomPlugin extends Plugin {
      * @param eventTarget targeted image element
      * @private
      */
-    private async handleZoom(evt: WheelEvent, eventTarget: Element) {
+    private async handleStack(evt: WheelEvent, eventTarget: Element) {
         const imageUri = eventTarget.attributes.getNamedItem("src").textContent;
 
         const activeFile: TFile = await this.getActivePaneWithImage(eventTarget);
@@ -228,35 +228,37 @@ export default class MouseWheelZoomPlugin extends Plugin {
             }
 
 
-            const zoomParams: HandleZoomParams = this.getZoomParams(imageUri, body, eventTarget);
+            const searchString = this.getSearchStringForImage(imageUri, eventTarget);
+            const lines = body.split(/\r?\n/);
 
-            // Perform replacements ONLY on the body
-            let modifiedBody = body;
-            const sizeMatches = body.match(zoomParams.sizeMatchRegExp);
+            const obsidianImagePattern = /^!\[\[[^\]]+\]\](\|\d+)?\s*$/;
+            const markdownImagePattern = /^!\[[^\]]*]\([^\)]+\)\s*$/;
 
-            // Element already has a size entry in the body
-            if (sizeMatches !== null) {
-                const oldSize: number = parseInt(sizeMatches[1]);
-                let newSize: number = oldSize;
-                if (evt.deltaY < 0) {
-                    newSize += this.settings.stepSize;
-                } else if (evt.deltaY > 0 && newSize > this.settings.stepSize) {
-                    newSize -= this.settings.stepSize;
-                }
-                // Replace within the body
-                modifiedBody = body.replace(zoomParams.replaceSizeExist.getReplaceFromString(oldSize), zoomParams.replaceSizeExist.getReplaceWithString(newSize));
-            } else { // Element has no size entry in the body -> give it an initial size
-                const initialSize = this.settings.initialSize;
-                const image = new Image();
-                image.src = imageUri;
-                const width = image.naturalWidth || initialSize;
-                const minWidth = Math.min(width, initialSize);
+            const isImageLine = (line: string) => {
+                const trimmed = line.trim();
+                return obsidianImagePattern.test(trimmed) || markdownImagePattern.test(trimmed);
+            };
 
-                // Replace within the body
-                modifiedBody = body.replace(zoomParams.replaceSizeNotExist.getReplaceFromString(0), zoomParams.replaceSizeNotExist.getReplaceWithString(minWidth));
+            let index = lines.findIndex(line => line.includes(searchString) && isImageLine(line));
+            if (index === -1) {
+                return fileText;
             }
 
-            // Combine original frontmatter with the modified body
+            let start = index;
+            let end = index;
+
+            while (start > 0 && isImageLine(lines[start - 1])) start--;
+            while (end < lines.length - 1 && isImageLine(lines[end + 1])) end++;
+
+            const images = [] as string[];
+            for (let i = start; i <= end; i++) {
+                const trimmed = lines[i].trim();
+                if (trimmed.length > 0) images.push(trimmed);
+            }
+
+            lines.splice(start, end - start + 1, images.join(' '));
+            const modifiedBody = lines.join('\n');
+
             return frontmatter + modifiedBody;
         });
     }
@@ -300,6 +302,19 @@ export default class MouseWheelZoomPlugin extends Plugin {
         }
 
        throw new Error("Image is not zoomable")
+    }
+
+    private getSearchStringForImage(imageUri: string, target: Element): string {
+        if (imageUri.contains("http") || imageUri.startsWith("data:image/")) {
+            return imageUri;
+        } else if (target.classList.value.match("excalidraw-svg.*")) {
+            const src = target.attributes.getNamedItem("filesource").textContent;
+            const imageName = src.substring(0, src.length - 3);
+            return imageName.substring(imageName.lastIndexOf("/") + 1);
+        } else if (imageUri.contains("app://")) {
+            return Util.getLocalImageNameFromUri(imageUri);
+        }
+        return imageUri;
     }
 
     async loadSettings() {
