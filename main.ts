@@ -239,6 +239,10 @@ export default class MouseWheelZoomPlugin extends Plugin {
                 return obsidianImagePattern.test(trimmed) || markdownImagePattern.test(trimmed);
             };
 
+            const isIgnorableLine = (line: string) => {
+                return /^[\s-]*$/.test(line);
+            }
+
             let index = lines.findIndex(line => line.includes(searchString) && isImageLine(line));
             if (index === -1) {
                 return fileText;
@@ -247,13 +251,13 @@ export default class MouseWheelZoomPlugin extends Plugin {
             let start = index;
             let end = index;
 
-            while (start > 0 && isImageLine(lines[start - 1])) start--;
-            while (end < lines.length - 1 && isImageLine(lines[end + 1])) end++;
+            while (start > 0 && (isImageLine(lines[start - 1]) || isIgnorableLine(lines[start - 1]))) start--;
+            while (end < lines.length - 1 && (isImageLine(lines[end + 1]) || isIgnorableLine(lines[end + 1]))) end++;
 
             const images = [] as string[];
             for (let i = start; i <= end; i++) {
                 const trimmed = lines[i].trim();
-                if (trimmed.length > 0) images.push(trimmed);
+                if (isImageLine(trimmed)) images.push(trimmed);
             }
 
             lines.splice(start, end - start + 1, images.join(' '));
