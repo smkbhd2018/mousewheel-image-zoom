@@ -237,13 +237,20 @@ export default class MouseWheelZoomPlugin extends Plugin {
             const obsidianImagePattern = /^!\[\[[^\]]+\]\](\|\d+)?\s*$/;
             const markdownImagePattern = /^!\[[^\]]*]\([^\)]+\)\s*$/;
 
+            const normalizeLine = (line: string) => {
+                let trimmed = line.trim();
+                trimmed = trimmed.replace(/^([-*+]|\d+\.)\s+/, '');
+                trimmed = trimmed.replace(/^\[[ xX]\]\s+/, '');
+                return trimmed;
+            };
+
             const isImageLine = (line: string) => {
-                const trimmed = line.trim();
-                return obsidianImagePattern.test(trimmed) || markdownImagePattern.test(trimmed);
+                const sanitized = normalizeLine(line);
+                return obsidianImagePattern.test(sanitized) || markdownImagePattern.test(sanitized);
             };
             const isIgnorable = (line: string) => {
-                const trimmed = line.trim();
-                return trimmed.length === 0 || !/[A-Za-z0-9]/.test(trimmed);
+                const sanitized = normalizeLine(line);
+                return sanitized.length === 0 || !/[A-Za-z0-9]/.test(sanitized);
             };
 
             let index = lines.findIndex(line => line.includes(searchString) && isImageLine(line));
