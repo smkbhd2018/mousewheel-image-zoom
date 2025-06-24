@@ -244,6 +244,13 @@ export default class MouseWheelZoomPlugin extends Plugin {
                 return trimmed;
             };
 
+                const sanitized = normalizeLine(line);
+                return obsidianImagePattern.test(sanitized) || markdownImagePattern.test(sanitized);
+                const sanitized = normalizeLine(line);
+                return sanitized.length === 0 || !/[A-Za-z0-9]/.test(sanitized);
+                return trimmed;
+            };
+
             const isImageLine = (line: string) => {
                 const sanitized = normalizeLine(line);
                 return obsidianImagePattern.test(sanitized) || markdownImagePattern.test(sanitized);
