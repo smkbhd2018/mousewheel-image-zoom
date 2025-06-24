@@ -1,7 +1,7 @@
 {
   "name": "image-stacker",
   "version": "1.0.24",
-  "description": "Stack consecutive images on one line using a hotkey",
+  "description": "Stack or unstack consecutive images with hotkeys",
   "main": "main.js",
   "scripts": {
     "dev": "rollup --config rollup.config.js -w",

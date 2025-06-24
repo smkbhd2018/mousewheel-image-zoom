@@ -54,6 +54,18 @@ export default class ImageStackerPlugin extends Plugin {
             }
         });
 
+        this.addCommand({
+            id: 'unstack-images-under-cursor',
+            name: 'Unstack images under cursor',
+            callback: () => {
+                if (this.lastHoveredImage) {
+                    this.handleUnstack(this.lastHoveredImage);
+                } else {
+                    new Notice('Hover over an image and try again');
+                }
+            }
+        });
+
         console.log("Loaded: Image Stacker")
 
         this.checkExistingUserConflict();
@@ -281,6 +293,55 @@ export default class ImageStackerPlugin extends Plugin {
             }
 
             lines.splice(start, end - start + 1, images.join(' '));
+            const modifiedBody = lines.join('\n');
+
+            return frontmatter + modifiedBody;
+        });
+    }
+
+    /**
+     * Split images on the same line into separate lines preserving indentation
+     * @param eventTarget targeted image element
+     * @private
+     */
+    private async handleUnstack(eventTarget: Element) {
+        const imageUri = eventTarget.attributes.getNamedItem("src").textContent;
+
+        const activeFile: TFile = await this.getActivePaneWithImage(eventTarget);
+
+        await this.app.vault.process(activeFile, (fileText) => {
+            let frontmatter = "";
+            let body = fileText;
+            const frontmatterRegex = /^---\s*([\s\S]*?)\s*---\n*/;
+            const match = fileText.match(frontmatterRegex);
+
+            if (match) {
+                frontmatter = match[0];
+                body = fileText.slice(frontmatter.length);
+            }
+
+            const searchString = this.getSearchStringForImage(imageUri, eventTarget);
+            const lines = body.split(/\r?\n/);
+
+            const imageLineIndex = lines.findIndex(line => line.includes(searchString));
+            if (imageLineIndex === -1) {
+                return fileText;
+            }
+
+            const line = lines[imageLineIndex];
+
+            const prefixMatch = line.match(/^(\s*(?:[-*+]\s*|\d+\.\s*)?)/);
+            const prefix = prefixMatch ? prefixMatch[0] : "";
+
+            const imagePattern = /!\[\[[^\]]+\]\](?:\|\d+)?|!\[[^\]]*\]\([^\)]+\)/g;
+            const images = line.match(imagePattern);
+            if (!images || images.length <= 1) {
+                return fileText;
+            }
+
+            const replacementLines = images.map(img => prefix + img);
+            lines.splice(imageLineIndex, 1, ...replacementLines);
+
             const modifiedBody = lines.join('\n');
 
             return frontmatter + modifiedBody;

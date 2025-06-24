@@ -3,7 +3,7 @@
   "name": "Image Stacker",
   "version": "1.0.24",
   "minAppVersion": "0.9.12",
-  "description": "Stack consecutive images on one line using a hotkey",
+  "description": "Stack or unstack consecutive images with hotkeys",
   "author": "Nico Jeske",
   "authorUrl": "https://github.com/nicojeske/image-stacker",
   "isDesktopOnly": true
