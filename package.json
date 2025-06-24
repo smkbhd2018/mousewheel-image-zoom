@@ -1,7 +1,7 @@
 {
   "name": "mousewheel-image-zoom",
   "version": "1.0.24",
-  "description": "This plugin enables you to increase/decrease the size of an image by scrolling",
+  "description": "Stack consecutive image lines using a hotkey",
   "main": "main.js",
   "scripts": {
     "dev": "rollup --config rollup.config.js -w",
