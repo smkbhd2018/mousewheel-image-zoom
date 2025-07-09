@@ -41,6 +41,12 @@ export default class MouseWheelZoomPlugin extends Plugin {
 
         this.addSettingTab(new MouseWheelZoomSettingsTab(this.app, this));
 
+        this.addCommand({
+            id: 'stack-images-under-cursor',
+            name: 'Stack images under cursor',
+            callback: () => this.stackImagesUnderCursor()
+        });
+
         console.log("Loaded: Mousewheel image zoom")
 
         this.checkExistingUserConflict();
@@ -156,12 +162,9 @@ export default class MouseWheelZoomPlugin extends Plugin {
                 } 
                 else if (targetIsCanvasNode) {
                     // we trying to resize focused canvas node.
-                    // i think here can be implementation of zoom images in embded markdown files on canvas. 
+                    // i think here can be implementation of zoom images in embded markdown files on canvas.
                 }
-                else if (targetIsImage) {
-                    // Stack consecutive image lines instead of resizing
-                    this.handleStack(evt, eventTarget);
-                }
+                // Removed alt+scroll behavior for images; stacking is now triggered via command
             }
         });
          this.registerDomEvent(currentWindow, "blur", () => {
@@ -234,26 +237,48 @@ export default class MouseWheelZoomPlugin extends Plugin {
             const obsidianImagePattern = /^!\[\[[^\]]+\]\](\|\d+)?\s*$/;
             const markdownImagePattern = /^!\[[^\]]*]\([^\)]+\)\s*$/;
 
-            const isImageLine = (line: string) => {
-                const trimmed = line.trim();
-                return obsidianImagePattern.test(trimmed) || markdownImagePattern.test(trimmed);
+            const normalizeLine = (line: string) => {
+                let trimmed = line.trim();
+                trimmed = trimmed.replace(/^([-*+]|\d+\.)\s+/, '');
+                trimmed = trimmed.replace(/^\[[ xX]\]\s+/, '');
+                return trimmed;
             };
 
-            let index = lines.findIndex(line => line.includes(searchString) && isImageLine(line));
-            if (index === -1) {
-                return fileText;
+                const sanitized = normalizeLine(line);
+                return obsidianImagePattern.test(sanitized) || markdownImagePattern.test(sanitized);
+                const sanitized = normalizeLine(line);
+                return sanitized.length === 0 || !/[A-Za-z0-9]/.test(sanitized);
+                return trimmed;
+            };
+
+            const isImageLine = (line: string) => {
+                const sanitized = normalizeLine(line);
+                return obsidianImagePattern.test(sanitized) || markdownImagePattern.test(sanitized);
+            };
+            const isIgnorable = (line: string) => {
+                const sanitized = normalizeLine(line);
+                return sanitized.length === 0 || !/[A-Za-z0-9]/.test(sanitized);
+            };
+
+    private async getActivePaneWithImage(imageElement: Element): Promise<TFile> {
+        return new Promise((resolve, reject) => {
+            let found = false;
+            this.app.workspace.iterateAllLeaves(leaf => {
+                if (!found && leaf.view.containerEl.contains(imageElement) && leaf.view instanceof MarkdownView) {
+                    found = true;
+                    resolve(leaf.view.file);
+                }
+            });
+            if (!found) {
+                reject(new Error("No file belonging to the image found"));
             }
-
-            let start = index;
-            let end = index;
-
-            while (start > 0 && isImageLine(lines[start - 1])) start--;
-            while (end < lines.length - 1 && isImageLine(lines[end + 1])) end++;
-
+        });
+    }
             const images = [] as string[];
             for (let i = start; i <= end; i++) {
-                const trimmed = lines[i].trim();
-                if (trimmed.length > 0) images.push(trimmed);
+                if (isImageLine(lines[i])) {
+                    images.push(lines[i].trim());
+                }
             }
 
             lines.splice(start, end - start + 1, images.join(' '));
@@ -360,6 +385,26 @@ export default class MouseWheelZoomPlugin extends Plugin {
             case ModifierKey.SHIFT:
             case ModifierKey.SHIFT_RIGHT:
                 return evt.shiftKey;
+        }
+    }
+
+    private getHoveredImageElement(): Element | null {
+        const hovered = document.querySelectorAll(':hover');
+        for (let i = hovered.length - 1; i >= 0; i--) {
+            const el = hovered[i] as Element;
+            if (el.nodeName === 'IMG') {
+                return el;
+            }
+        }
+        return null;
+    }
+
+    private async stackImagesUnderCursor() {
+        const target = this.getHoveredImageElement();
+        if (target) {
+            await this.handleStack(new WheelEvent('stack'), target);
+        } else {
+            new Notice('No image under cursor');
         }
     }
 
