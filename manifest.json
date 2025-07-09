@@ -1,10 +1,11 @@
 {
-  "id": "mousewheel-image-zoom",
-  "name": "Mousewheel Image zoom",
-  "version": "1.0.24",
-  "minAppVersion": "0.9.12",
-  "description": "This plugin enables you to increase/decrease the size of an image by scrolling",
-  "author": "Nico Jeske",
-  "authorUrl": "https://github.com/nicojeske/mousewheel-image-zoom",
-  "isDesktopOnly": true
+       "id": "image-width-slider",
+       "name": "Image Width Slider",
+	"version": "1.0.5",
+	"minAppVersion": "0.15.0",
+       "description": "Resize images in your notes with an easy to use slider.",
+	"author": "@MugishoMp",
+	"authorUrl": "https://github.com/MugishoMp",
+	"fundingUrl": "https://www.paypal.com/donate/?hosted_button_id=E4APAMMHVJE4N",
+	"isDesktopOnly": true
 }

@@ -1,0 +1,8 @@
+{
+  "sliderPercentage": "12",
+  "sliderPercentageDefault": "50",
+  "sliderWidth": "150",
+  "unit": "vw",
+  "sliderEnabled": true,
+  "excludedParentClasses": "oit"
+}
